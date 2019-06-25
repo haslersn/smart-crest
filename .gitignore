@@ -1,4 +1,6 @@
 /target
 **/*.rs.bk
 
+result
+
 smart_crest.toml

@@ -1,42 +1,27 @@
-{ pkgsPath ? <nixpkgs>, crossSystem ? null }:
-
 let
-    mozOverlay = import (
-        builtins.fetchTarball https://github.com/mozilla/nixpkgs-mozilla/archive/master.tar.gz
-    );
-    pkgs = import pkgsPath {
-        overlays = [ mozOverlay ];
-        inherit crossSystem;
-    };
-    targets = [ pkgs.stdenv.targetPlatform.config ];
+  defaultPkgs = import <nixpkgs> {};
 in
 
-with pkgs;
+{
+  openssl ? defaultPkgs.openssl,
+  pcsclite ? defaultPkgs.pcsclite,
+  pkg-config ? defaultPkgs.pkg-config,
+  rustPlatform ? defaultPkgs.rustPlatform
+}:
 
-stdenv.mkDerivation {
-    name = "smart-crest";
+rustPlatform.buildRustPackage rec {
+  name = "smart_crest-${version}";
+  version = "unstable";
 
-    # build time dependencies targeting the build platform
-    depsBuildBuild = [
-        buildPackages.stdenv.cc
-    ];
-    HOST_CC = "cc";
+  src = ./.;
 
-    # build time dependencies targeting the host platform
-    nativeBuildInputs = [
-        (buildPackages.buildPackages.latest.rustChannels.nightly.rust.override { inherit targets; })
-        buildPackages.buildPackages.rustfmt
-        pkgconfig
-    ];
-    shellHook = ''
-        export RUSTFLAGS="-C linker=$CC"
-    '';
-    CARGO_BUILD_TARGET = targets;
+  cargoSha256 = "18fqlzwd4iqa00zdgnagk5z36hialpjd8gjcdgl0d68pd6ybgmdc";
 
-    # run time dependencies
-    buildInputs = [
-        pcsclite.dev
-    ];
-    OPENSSL_DIR = openssl_1_1.dev;
-    OPENSSL_LIB_DIR = "${openssl_1_1.out}/lib";
+  nativeBuildInputs = [
+    pkg-config
+  ];
+  buildInputs = [
+    openssl
+    pcsclite
+  ];
 }
