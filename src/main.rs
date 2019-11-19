@@ -19,7 +19,7 @@ use std::collections::VecDeque;
 use std::error::Error;
 use std::ffi::CStr;
 
-pub type Result<T = ()> = std::result::Result<T, Box<Error>>;
+pub type Result<T = ()> = std::result::Result<T, Box<dyn Error>>;
 
 struct CardReader {
     context: Context,
@@ -29,6 +29,7 @@ struct CardReader {
 
 impl CardReader {
     pub fn new() -> Result<Self> {
+        info!("Initializing CardReader ...");
         Ok(Self {
             context: Context::establish(Scope::User)?,
             reader_states: vec![
@@ -96,7 +97,7 @@ impl CardReader {
             if rs.event_state().contains(State::CHANGED | State::PRESENT) {
                 match self.read_card(rs.name()) {
                     Ok(resp) => self.responses.push_back(resp),
-                    Err(err) => error!("Error reading card: {}", err),
+                    Err(err) => return Err(err),
                 }
             }
         }
@@ -153,14 +154,17 @@ fn main() -> Result {
     let conf = read_config()?;
     let rest_client = Client::new();
 
-    for resp in CardReader::new()? {
-        match resp {
-            Ok(resp) => handle_response(&conf, &rest_client, resp),
-            Err(err) => error!("Got error instead of response: {:?}", err),
+    loop {
+        for resp in CardReader::new()? {
+            match resp {
+                Ok(resp) => handle_response(&conf, &rest_client, resp),
+                Err(err) => {
+                    error!("Got error instead of response: {:?}", err);
+                    break; // in order to re-initialize the CardReader
+                }
+            }
         }
     }
-
-    Ok(())
 }
 
 fn read_config() -> Result<Config> {
